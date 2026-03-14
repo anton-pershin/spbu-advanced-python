@@ -1,0 +1,4 @@
+Small sample text.
+Small sample text: words, words; WORDS!
+Numbers: 42 42.
+Unicode: Привет привет.
