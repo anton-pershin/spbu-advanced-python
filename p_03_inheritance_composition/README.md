@@ -78,7 +78,6 @@ If you need flexibility, use defaults and/or `*args, **kwargs` carefully.
 
 In *cooperative mixins* this becomes even more important: every class in the
 `super()` chain must agree on what arguments are passed along.
-```
 
 ### `super()`
 
@@ -178,6 +177,53 @@ Important: for mixins to compose, they must be **cooperative**:
 This creates a *chain* where every class in the MRO gets a chance to contribute.
 
 If you forget `super()`, the chain breaks and some behavior silently disappears.
+
+Here is a minimal cooperative mixin example:
+
+```python
+class Base:
+    def __init__(self, *, x: int) -> None:
+        self.x = x
+
+    def describe(self) -> str:
+        return f"x={self.x}"
+
+
+class AddTagMixin:
+    def __init__(self, *, tag: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.tag = tag
+
+    def describe(self) -> str:
+        return super().describe() + f", tag={self.tag}"
+
+
+class DoubleXMixin:
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.x *= 2
+
+
+class Obj(AddTagMixin, DoubleXMixin, Base):
+    pass
+
+
+o = Obj(x=10, tag="hi")
+print([cls.__name__ for cls in Obj.mro()])
+# ['Obj', 'AddTagMixin', 'DoubleXMixin', 'Base', 'object']
+
+print(o.describe())
+# x=20, tag=hi
+```
+
+Key takeaways:
+
+- every mixin accepts `**kwargs` and forwards them with `super().__init__`
+- every overridden method calls `super().method(...)`
+- the final behavior is the *composition* of all mixins in MRO order
+
+This is the same pattern you need for `UndirectedMixin` / `WeightedMixin` etc.
+in this practicum: each mixin enforces one policy, then delegates to `super()`.
 
 ## Background: composition
 
