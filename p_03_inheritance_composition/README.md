@@ -44,6 +44,40 @@ class B(A):
         return "B"
 
 assert B().f() == "B"
+
+### Overriding with a different argument list
+
+In Python, methods are looked up **by name only**. There is no "overloading" by
+signature like in some other languages. If a subclass defines a method with the
+same name but a *different set of parameters*, it still overrides the base
+method.
+
+What happens then depends on how you call it:
+
+```python
+class A:
+    def f(self, x: int) -> int:
+        return x + 1
+
+class B(A):
+    def f(self, x: int, y: int) -> int:  # different signature
+        return x + y
+
+b = B()
+
+b.f(1, 2)  # OK -> 3
+b.f(1)     # TypeError: missing required argument 'y'
+```
+
+This is a common source of bugs in inheritance-heavy designs: code written
+against the base class expects `f(x)`, but a subclass silently changed the
+callable interface.
+
+Practical rule: when overriding, keep the method signature compatible.
+If you need flexibility, use defaults and/or `*args, **kwargs` carefully.
+
+In *cooperative mixins* this becomes even more important: every class in the
+`super()` chain must agree on what arguments are passed along.
 ```
 
 ### `super()`
@@ -76,6 +110,60 @@ You can inspect it:
 ```python
 print(C.mro())
 ```
+
+### MRO: main rules (how the order is chosen)
+
+Python computes MRO using an algorithm called **C3 linearization**. You do not
+need to memorize the algorithm, but you should know the rules it guarantees.
+
+For a class `class C(A, B): ...` the MRO is a single list starting with `C`.
+When Python needs `obj.method`, it searches classes in that list from left to
+right.
+
+The important rules:
+
+1) Local precedence order: bases are considered left-to-right.
+   If both `A` and `B` define `f`, then in `C(A, B)` Python will pick `A.f`.
+
+2) Parent before its parents: a class always appears before any of its own base
+   classes. (A subclass beats its base.)
+
+3) Monotonicity: the relative order of classes in a base's MRO is preserved in
+   the subclass MRO. This prevents "surprising" reorderings.
+
+The classic example is the diamond:
+
+```python
+class A:
+    def f(self) -> str:
+        return "A"
+
+class B(A):
+    def f(self) -> str:
+        return "B->" + super().f()
+
+class C(A):
+    def f(self) -> str:
+        return "C->" + super().f()
+
+class D(B, C):
+    pass
+
+print([cls.__name__ for cls in D.mro()])
+# ['D', 'B', 'C', 'A', 'object']
+
+print(D().f())
+# B->C->A
+```
+
+Note what happens:
+
+- `D` inherits from `B` and `C` (left-to-right), so `B` comes before `C`.
+- Both `B` and `C` eventually call `super().f()`. Because `super()` follows the
+  MRO, you get a chain `B -> C -> A` instead of calling `A` twice.
+
+In this practicum, mixins rely on exactly this property: each mixin contributes
+its piece and then calls `super()` so the next class in the MRO can contribute.
 
 ### Mixins
 
