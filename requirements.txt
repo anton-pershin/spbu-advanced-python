@@ -3,3 +3,4 @@ black
 isort
 mypy
 pylint
+pydantic>=2
